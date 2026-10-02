@@ -1,0 +1,6 @@
+{
+  "name": "SecureMonitor AI",
+  "description": "AI Device Monitoring Dashboard for Laptop, Mobile, and optional ESP32 IoT hardware with real-time anomaly detection, risk assessment, and safe remediation.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
