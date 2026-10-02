@@ -1,8 +1,6 @@
 ```tsx
 import React, { useState, useEffect, useCallback } from 'react';
-import {
-  Header,
-} from './components/Header';
+import { Header } from './components/Header';
 import { DemoBanner } from './components/DemoBanner';
 import { DeviceCard } from './components/DeviceCard';
 import { RiskCard } from './components/RiskCard';
@@ -60,16 +58,21 @@ export default function App() {
   const [hardwareMode, setHardwareMode] =
     useState<HardwareMode>('software_iot');
 
-  const [isDemoMode, setIsDemoMode] = useState<boolean>(false);
+  const [isDemoMode, setIsDemoMode] = useState(false);
   const [demoScenario, setDemoScenario] =
     useState<DemoScenario>('NORMAL');
 
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [showAuthModal, setShowAuthModal] = useState<boolean>(false);
+  const [currentUser, setCurrentUser] =
+    useState<User | null>(null);
 
-  const [devices, setDevices] = useState<Device[]>([]);
+  const [showAuthModal, setShowAuthModal] =
+    useState(false);
+
+  const [devices, setDevices] =
+    useState<Device[]>([]);
+
   const [selectedDeviceId, setSelectedDeviceId] =
-    useState<string>('laptop-user-ae9948fe');
+    useState('laptop-user-ae9948fe');
 
   const [laptopData, setLaptopData] =
     useState<LaptopTelemetry | null>(null);
@@ -101,52 +104,60 @@ export default function App() {
     });
 
   const [isConnected, setIsConnected] =
-    useState<boolean>(true);
+    useState(true);
 
   const [lastUpdated, setLastUpdated] =
     useState<Date | null>(new Date());
 
   const [isRefreshing, setIsRefreshing] =
-    useState<boolean>(false);
+    useState(false);
 
   const [isResolvingId, setIsResolvingId] =
     useState<string | null>(null);
 
   const [showSimulator, setShowSimulator] =
-    useState<boolean>(false);
+    useState(false);
 
   const [isTogglingHardware, setIsTogglingHardware] =
-    useState<boolean>(false);
+    useState(false);
 
   const [laptopFetchError, setLaptopFetchError] =
     useState<string | null>(null);
 
   const [isTriggeringN8n, setIsTriggeringN8n] =
-    useState<boolean>(false);
+    useState(false);
 
   useEffect(() => {
-    setAuthStateListener(user => {
+    const unsubscribe = setAuthStateListener(user => {
       if (user?.userId === 'demo-user-001') {
         setCurrentUser(user);
         setIsDemoMode(true);
         setShowAuthModal(false);
+        setCurrentTab('dashboard');
+        setSelectedDeviceId('laptop-001');
         return;
       }
 
       setCurrentUser(user);
 
-      if (!user && !isDemoMode) {
+      if (!user) {
         setShowAuthModal(true);
       }
     });
-  }, [isDemoMode]);
+
+    return () => {
+      if (typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
+    };
+  }, []);
 
   useEffect(() => {
-    const initAuth = async () => {
-      if (isDemoMode) {
-        return;
-      }
+    if (isDemoMode) {
+      return;
+    }
 
+    const initAuth = async () => {
       try {
         const user = await getCurrentUser();
 
@@ -156,17 +167,7 @@ export default function App() {
           return;
         }
 
-        try {
-          const loginRes = await login(
-            'user@example.com',
-            'password123'
-          );
-
-          setCurrentUser(loginRes.user);
-          setShowAuthModal(false);
-        } catch {
-          setShowAuthModal(true);
-        }
+        setShowAuthModal(true);
       } catch {
         setShowAuthModal(true);
       }
@@ -246,12 +247,7 @@ export default function App() {
             )
           );
         }
-      } catch (err) {
-        console.warn(
-          'Laptop status fetch error:',
-          err
-        );
-
+      } catch {
         setLaptopFetchError(
           'Live laptop telemetry is temporarily unavailable.'
         );
@@ -261,10 +257,8 @@ export default function App() {
             d.deviceType === 'laptop'
               ? {
                   ...d,
-                  connectionStatus:
-                    'disconnected',
-                  connectionState:
-                    'ERROR',
+                  connectionStatus: 'disconnected',
+                  connectionState: 'ERROR',
                 }
               : d
           )
@@ -273,34 +267,22 @@ export default function App() {
 
       if (targetMobile) {
         try {
-          const mData =
-            await getMobileStatus(
-              targetMobile.deviceId
-            );
+          const mData = await getMobileStatus(
+            targetMobile.deviceId
+          );
 
           setMobileData(mData);
-        } catch (err) {
-          console.warn(
-            'Mobile status fetch error:',
-            err
-          );
-        }
+        } catch {}
       }
 
       if (targetIoT) {
         try {
-          const iData =
-            await getIoTStatus(
-              targetIoT.deviceId
-            );
+          const iData = await getIoTStatus(
+            targetIoT.deviceId
+          );
 
           setIoTData(iData);
-        } catch (err) {
-          console.warn(
-            'IoT status fetch error:',
-            err
-          );
-        }
+        } catch {}
       }
 
       const alertRes = await getAlerts();
@@ -346,12 +328,7 @@ export default function App() {
       } catch {}
 
       setLastUpdated(new Date());
-    } catch (err) {
-      console.warn(
-        'Backend polling error:',
-        err
-      );
-
+    } catch {
       setIsConnected(false);
 
       setLaptopFetchError(
@@ -367,15 +344,17 @@ export default function App() {
   ]);
 
   useEffect(() => {
-    if (!isDemoMode && currentUser) {
-      fetchLiveTelemetry();
-
-      const interval = setInterval(() => {
-        fetchLiveTelemetry();
-      }, 30000);
-
-      return () => clearInterval(interval);
+    if (isDemoMode || !currentUser) {
+      return;
     }
+
+    fetchLiveTelemetry();
+
+    const interval = setInterval(() => {
+      fetchLiveTelemetry();
+    }, 30000);
+
+    return () => clearInterval(interval);
   }, [
     fetchLiveTelemetry,
     isDemoMode,
@@ -408,9 +387,11 @@ export default function App() {
     setMobileData(demoData.mobile);
     setIoTData(demoData.iot);
     setAiAssessment(demoData.assessment);
+
     setRecommendations(
       demoData.recommendations
     );
+
     setAlerts(demoData.alerts);
 
     setIsConnected(true);
@@ -511,7 +492,6 @@ export default function App() {
       );
 
       setIsTogglingHardware(false);
-
       return;
     }
 
@@ -570,24 +550,24 @@ export default function App() {
   };
 
   const handleDemoSuccess = (user: User) => {
-    const demoUser =
-      user.userId === 'demo-user-001';
-
-    setCurrentUser(user);
-    setShowAuthModal(false);
-
-    if (demoUser) {
+    if (user.userId === 'demo-user-001') {
+      setCurrentUser(user);
       setIsDemoMode(true);
-      setDemoScenario('NORMAL');
+      setShowAuthModal(false);
       setCurrentTab('dashboard');
-      setSelectedDeviceId(
-        'laptop-001'
-      );
+      setSelectedDeviceId('laptop-001');
+      setIsConnected(true);
+      setLaptopFetchError(null);
       return;
     }
 
+    setCurrentUser(user);
     setIsDemoMode(false);
-    fetchLiveTelemetry();
+    setShowAuthModal(false);
+
+    setTimeout(() => {
+      fetchLiveTelemetry();
+    }, 0);
   };
 
   const handleLogout = async () => {
@@ -600,12 +580,7 @@ export default function App() {
 
     try {
       await logout();
-    } catch (err) {
-      console.warn(
-        'Logout error:',
-        err
-      );
-    }
+    } catch {}
 
     setCurrentUser(null);
     setShowAuthModal(true);
@@ -664,15 +639,13 @@ export default function App() {
   };
 
   const currentRiskLevel =
-    selectedDevice.deviceType ===
-      'laptop' &&
+    selectedDevice.deviceType === 'laptop' &&
     laptopData
       ? laptopData.risk
       : selectedDevice.riskLevel;
 
   const currentAnomalyScore =
-    selectedDevice.deviceType ===
-      'laptop' &&
+    selectedDevice.deviceType === 'laptop' &&
     laptopData
       ? laptopData.anomalyScore ??
         laptopData.anomaly_score ??
@@ -680,12 +653,10 @@ export default function App() {
       : selectedDevice.anomalyScore;
 
   const currentRiskReason =
-    selectedDevice.deviceType ===
-    'laptop'
+    selectedDevice.deviceType === 'laptop'
       ? laptopData?.reason ||
         'No unusual behaviour detected.'
-      : selectedDevice.deviceType ===
-        'mobile'
+      : selectedDevice.deviceType === 'mobile'
       ? mobileData?.reason ||
         'No unusual behaviour detected.'
       : iotData?.reason ||
@@ -693,7 +664,6 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 font-sans flex flex-col">
-
       <Header
         currentTab={currentTab}
         onSelectTab={setCurrentTab}
@@ -702,11 +672,24 @@ export default function App() {
           setHardwareMode
         }
         isDemoMode={isDemoMode}
-        onToggleDemoMode={() =>
-          setIsDemoMode(
-            !isDemoMode
-          )
-        }
+        onToggleDemoMode={() => {
+          if (isDemoMode) {
+            setIsDemoMode(false);
+            setCurrentUser(null);
+            setShowAuthModal(true);
+          } else {
+            setCurrentUser({
+              userId: 'demo-user-001',
+              name: 'Demo User',
+              email: 'demo@securemonitor.ai',
+              role: 'USER',
+            });
+            setIsDemoMode(true);
+            setShowAuthModal(false);
+            setCurrentTab('dashboard');
+            setSelectedDeviceId('laptop-001');
+          }
+        }}
         isConnected={isConnected}
         lastUpdatedText={formatLastUpdated(
           lastUpdated
@@ -720,9 +703,7 @@ export default function App() {
           fetchLiveTelemetry
         }
         isRefreshing={isRefreshing}
-        alertCount={
-          openAlertsCount
-        }
+        alertCount={openAlertsCount}
       />
 
       {isDemoMode && (
@@ -733,14 +714,15 @@ export default function App() {
           onSelectScenario={
             setDemoScenario
           }
-          onExitDemo={() =>
-            setIsDemoMode(false)
-          }
+          onExitDemo={() => {
+            setIsDemoMode(false);
+            setCurrentUser(null);
+            setShowAuthModal(true);
+          }}
         />
       )}
 
       <main className="flex-1 mx-auto w-full max-w-7xl px-4 py-6 sm:px-6">
-
         {!isConnected &&
           !isDemoMode && (
             <div className="mb-6 flex items-center justify-between rounded-lg border border-rose-500/40 bg-rose-950/30 p-3.5 text-xs text-rose-300">
@@ -772,7 +754,6 @@ export default function App() {
         {laptopFetchError &&
           !isDemoMode && (
             <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border border-amber-500/40 bg-amber-950/25 p-3.5 text-xs text-amber-200">
-
               <div className="flex items-start space-x-2.5">
                 <AlertCircle className="h-4 w-4 text-amber-400 mt-0.5 shrink-0" />
 
@@ -788,7 +769,6 @@ export default function App() {
               </div>
 
               <div className="flex items-center space-x-2 shrink-0 self-end sm:self-auto">
-
                 <button
                   onClick={
                     handleTriggerN8nTest
@@ -815,20 +795,15 @@ export default function App() {
                 >
                   Retry
                 </button>
-
               </div>
             </div>
           )}
 
-        {currentTab ===
-          'dashboard' && (
+        {currentTab === 'dashboard' && (
           <div className="space-y-6">
-
             <div>
               <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-1">
-
                 <div className="flex items-center space-x-2.5">
-
                   <h1 className="text-xl font-bold tracking-tight text-white">
                     Device Monitoring
                   </h1>
@@ -848,7 +823,6 @@ export default function App() {
                       Demo / Simulated Data
                     </span>
                   )}
-
                 </div>
 
                 <span className="text-xs text-slate-400 font-mono">
@@ -857,7 +831,6 @@ export default function App() {
                     lastUpdated
                   )}
                 </span>
-
               </div>
 
               <p className="mt-1 text-xs text-slate-400">
@@ -870,7 +843,6 @@ export default function App() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-
               {visibleDevices.map(
                 dev => (
                   <DeviceCard
@@ -914,11 +886,9 @@ export default function App() {
                   />
                 )
               )}
-
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-
               <div className="lg:col-span-2">
                 <RiskCard
                   riskLevel={
@@ -947,7 +917,6 @@ export default function App() {
                   }
                 />
               </div>
-
             </div>
 
             <DeviceHealth
@@ -978,7 +947,6 @@ export default function App() {
             />
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-
               <RecommendationCard
                 recommendations={
                   recommendations
@@ -994,7 +962,6 @@ export default function App() {
                   isResolvingId
                 }
               />
-
             </div>
 
             {hardwareMode ===
@@ -1018,16 +985,12 @@ export default function App() {
                 }
               />
             )}
-
           </div>
         )}
 
-        {currentTab ===
-          'devices' && (
+        {currentTab === 'devices' && (
           <div className="space-y-6">
-
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-
               <div>
                 <h1 className="text-xl font-bold tracking-tight text-white">
                   Registered Devices
@@ -1040,6 +1003,10 @@ export default function App() {
 
               <button
                 onClick={async () => {
+                  if (isDemoMode) {
+                    return;
+                  }
+
                   const name =
                     prompt(
                       'Enter a name for the new device:',
@@ -1055,15 +1022,14 @@ export default function App() {
                     await fetchLiveTelemetry();
                   }
                 }}
-                className="self-start sm:self-auto rounded-md border border-cyan-500/40 bg-cyan-950 px-3 py-1.5 text-xs font-semibold text-cyan-300 hover:bg-cyan-900 transition-colors"
+                disabled={isDemoMode}
+                className="self-start sm:self-auto rounded-md border border-cyan-500/40 bg-cyan-950 px-3 py-1.5 text-xs font-semibold text-cyan-300 hover:bg-cyan-900 transition-colors disabled:opacity-50"
               >
                 + Register New Device
               </button>
-
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-
               {visibleDevices.map(
                 dev => (
                   <DeviceCard
@@ -1107,7 +1073,6 @@ export default function App() {
                   />
                 )
               )}
-
             </div>
 
             <DeviceHealth
@@ -1158,14 +1123,11 @@ export default function App() {
                 }
               />
             )}
-
           </div>
         )}
 
-        {currentTab ===
-          'alerts' && (
+        {currentTab === 'alerts' && (
           <div className="space-y-6 max-w-5xl mx-auto">
-
             <div>
               <h1 className="text-xl font-bold tracking-tight text-white">
                 Security & Operational Alerts
@@ -1185,14 +1147,11 @@ export default function App() {
                 isResolvingId
               }
             />
-
           </div>
         )}
 
-        {currentTab ===
-          'settings' && (
+        {currentTab === 'settings' && (
           <div className="space-y-6">
-
             <div>
               <h1 className="text-xl font-bold tracking-tight text-white">
                 System Settings
@@ -1214,10 +1173,8 @@ export default function App() {
                 isRefreshing
               }
             />
-
           </div>
         )}
-
       </main>
 
       <TelemetrySimulatorModal
@@ -1272,9 +1229,7 @@ export default function App() {
       />
 
       <footer className="border-t border-slate-900 bg-slate-950/80 py-4 text-center text-xs text-slate-400">
-
         <div className="mx-auto max-w-7xl px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
-
           <span>
             SecureMonitor AI • Professional Device Health & Threat Assessment
           </span>
@@ -1282,23 +1237,9 @@ export default function App() {
           <span className="font-mono text-[11px] text-slate-400">
             Rule-Engine Anomaly Detection • Hardware Optional
           </span>
-
         </div>
-
       </footer>
-
     </div>
   );
 }
 ```
-
-### After replacing
-
-1. **GitHub → Commit changes**
-2. Open `https://securemonitor-ai.ai.studio`
-3. Refresh with **Ctrl + F5**
-4. Click **Interactive Demo Mode**
-
-It should now enter the dashboard and show **Demo / Simulated Data**.
-
-If it still returns to the login screen, **don't change anything else**—send me what happens after clicking the button.
