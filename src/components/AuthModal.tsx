@@ -65,9 +65,20 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         </div>
 
         {errorMessage && (
-          <div className="mt-4 flex items-center space-x-2 rounded-lg border border-rose-500/40 bg-rose-950/30 p-3 text-xs text-rose-300">
-            <AlertCircle className="h-4 w-4 shrink-0" />
-            <span>{errorMessage}</span>
+          <div className="mt-4 rounded-lg border border-rose-500/40 bg-rose-950/30 p-3 text-xs text-rose-300">
+            <div className="flex items-center space-x-2">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              <span>{errorMessage}</span>
+            </div>
+            {errorMessage.toLowerCase().includes('connection') && (
+              <button
+                type="button"
+                onClick={() => onSuccess({ userId: 'user-001', name: 'Alex Vance', email: 'user@example.com', role: 'USER' })}
+                className="mt-2 text-[11px] font-semibold text-cyan-400 hover:text-cyan-300 hover:underline cursor-pointer block"
+              >
+                Or enter in Interactive Demo Mode →
+              </button>
+            )}
           </div>
         )}
 

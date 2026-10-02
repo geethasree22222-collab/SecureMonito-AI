@@ -10,7 +10,24 @@ import {
   User,
 } from '../types';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+const PRODUCTION_BACKEND_URL = 'https://ais-pre-bbvk7a6urp7kuuxvosso4k-998137428727.asia-southeast1.run.app';
+
+// In production on Vercel or external hosts, route requests to the Cloud Run backend
+export function getApiBaseUrl(): string {
+  if (import.meta.env.VITE_API_BASE_URL) {
+    return import.meta.env.VITE_API_BASE_URL.replace(/\/$/, '');
+  }
+  if (typeof window !== 'undefined') {
+    const hostname = window.location.hostname;
+    // Route to Cloud Run backend if deployed on Vercel or external domain
+    if (hostname.includes('vercel.app') || (!hostname.includes('localhost') && !hostname.includes('run.app'))) {
+      return PRODUCTION_BACKEND_URL;
+    }
+  }
+  return '';
+}
+
+const API_BASE_URL = getApiBaseUrl();
 
 // Access token stored in-memory (per security requirements)
 let currentAccessToken: string | null = null;
@@ -35,17 +52,21 @@ async function refreshAccessToken(): Promise<boolean> {
 
   refreshPromise = (async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
+      const baseUrl = getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/auth/refresh`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include', // Includes HttpOnly cookie
       });
 
       if (response.ok) {
-        const data = await response.json();
-        if (data.accessToken) {
-          setAccessToken(data.accessToken);
-          return true;
+        const contentType = response.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+          const data = await response.json();
+          if (data.accessToken) {
+            setAccessToken(data.accessToken);
+            return true;
+          }
         }
       }
       // If refresh fails, clear token and notify
@@ -76,14 +97,16 @@ export async function apiRequest<T = any>(path: string, options: RequestInit = {
     headers.set('Authorization', `Bearer ${token}`);
   }
 
+  const baseUrl = getApiBaseUrl();
   let response: Response;
   try {
-    response = await fetch(`${API_BASE_URL}${path}`, {
+    response = await fetch(`${baseUrl}${path}`, {
       ...options,
       headers,
       credentials: 'include',
     });
   } catch (netErr: any) {
+    console.warn(`[SecureMonitor AI] Network error fetching ${baseUrl}${path}:`, netErr);
     throw new Error('Connection unavailable');
   }
 
@@ -96,7 +119,7 @@ export async function apiRequest<T = any>(path: string, options: RequestInit = {
       retryHeaders.set('Authorization', `Bearer ${getAccessToken()}`);
 
       try {
-        response = await fetch(`${API_BASE_URL}${path}`, {
+        response = await fetch(`${baseUrl}${path}`, {
           ...options,
           headers: retryHeaders,
           credentials: 'include',
@@ -109,9 +132,31 @@ export async function apiRequest<T = any>(path: string, options: RequestInit = {
     }
   }
 
-  const data = await response.json();
+  // Safely parse JSON or handle HTML/text response (e.g. from Vercel proxy or error page)
+  const contentType = response.headers.get('content-type') || '';
+  let data: any = null;
+
+  if (contentType.includes('application/json')) {
+    try {
+      data = await response.json();
+    } catch {
+      data = null;
+    }
+  } else {
+    // Non-JSON response (e.g. HTML 404/502 from proxy or hosting platform)
+    const text = await response.text();
+    if (!response.ok) {
+      throw new Error(`Server returned HTTP ${response.status}: ${response.statusText || 'Backend route unavailable'}`);
+    }
+    try {
+      data = JSON.parse(text);
+    } catch {
+      throw new Error(`Received unexpected non-JSON response from backend. Verify backend URL.`);
+    }
+  }
+
   if (!response.ok) {
-    const errorMsg = data?.error?.message || `Request failed with status ${response.status}`;
+    const errorMsg = data?.error?.message || data?.message || `Request failed with status ${response.status}`;
     throw new Error(errorMsg);
   }
 

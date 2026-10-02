@@ -14,6 +14,35 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(cookieParser());
 
+// Enable CORS for Vercel deployment and cross-origin frontend clients
+app.use((req: Request, res: Response, next: NextFunction) => {
+  const origin = req.headers.origin;
+  if (origin) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Laptop-Telemetry-Key, X-Requested-With, Accept');
+
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(204);
+  }
+  next();
+});
+
+// Helper for cross-origin and secure HttpOnly cookie settings
+function getAuthCookieOptions(req: Request) {
+  const origin = req.headers.origin || '';
+  const isCrossSite = origin.length > 0 && !origin.includes('run.app');
+  return {
+    httpOnly: true,
+    secure: isCrossSite || process.env.NODE_ENV === 'production',
+    sameSite: (isCrossSite ? 'none' : 'lax') as 'none' | 'lax',
+    path: '/',
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+  };
+}
+
 // Initialize Google Gemini AI if API key is provided
 let aiClient: GoogleGenAI | null = null;
 if (process.env.GEMINI_API_KEY) {
@@ -513,13 +542,7 @@ app.post('/api/auth/register', (req: Request, res: Response) => {
 
   const { accessToken, refreshToken } = createTokens(newUser);
 
-  res.cookie('refresh_token', refreshToken, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    path: '/',
-    maxAge: 7 * 24 * 60 * 60 * 1000,
-  });
+  res.cookie('refresh_token', refreshToken, getAuthCookieOptions(req));
 
   return res.status(201).json({
     success: true,
@@ -561,13 +584,7 @@ app.post('/api/auth/login', (req: Request, res: Response) => {
 
   const { accessToken, refreshToken } = createTokens(user);
 
-  res.cookie('refresh_token', refreshToken, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    path: '/',
-    maxAge: 7 * 24 * 60 * 60 * 1000,
-  });
+  res.cookie('refresh_token', refreshToken, getAuthCookieOptions(req));
 
   return res.json({
     success: true,
@@ -612,13 +629,7 @@ app.post('/api/auth/refresh', (req: Request, res: Response) => {
   refreshTokens.delete(token);
   const { accessToken, refreshToken: newRefreshToken } = createTokens(user);
 
-  res.cookie('refresh_token', newRefreshToken, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    path: '/',
-    maxAge: 7 * 24 * 60 * 60 * 1000,
-  });
+  res.cookie('refresh_token', newRefreshToken, getAuthCookieOptions(req));
 
   return res.json({
     success: true,
@@ -652,8 +663,9 @@ app.post('/api/auth/logout', (req: Request, res: Response) => {
     accessTokens.delete(accessToken);
   }
 
-  res.clearCookie('refresh_token', { path: '/' });
-  res.clearCookie('__Host-refresh_token', { path: '/' });
+  const clearOptions = getAuthCookieOptions(req);
+  res.clearCookie('refresh_token', clearOptions);
+  res.clearCookie('__Host-refresh_token', clearOptions);
 
   return res.json({
     success: true,
